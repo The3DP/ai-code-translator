@@ -1,4 +1,4 @@
-#Translator CODE
+#Code for translator
 import re
 
 def convert_assignment(line):
