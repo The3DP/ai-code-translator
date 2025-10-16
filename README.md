@@ -2,6 +2,9 @@
 This advanced code converter 
 translates Python to Shell.
 It is capable of handling most translations.
+Please note that this translates from
+Python to Shell, and does not support
+Shell to Python translations.
 
 ### Example input (in Python)
 
@@ -41,4 +44,4 @@ else
 fi
 ```
 #### Using the translator is easy and fun. Simply copy and paste Translator.py into a Python module.
-#### This repo was made with partial assistance from ChatGPT.
+#### *This repo was made with partial assistance from ChatGPT.*
