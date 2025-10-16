@@ -1,8 +1,9 @@
-# Code for translator
+# Code for Python to Shell script translator
 import re
 
 def convert_assignment(line):
-    return line.strip()
+    var, value = line.split('=', 1)
+    return f'{var.strip()}={value.strip()}'
 
 def convert_input(line):
     match = re.match(r'(\w+)\s*=\s*input\(["\'](.*?)["\']\)', line)
@@ -17,8 +18,8 @@ def convert_print(line):
     shell_parts = []
     for part in parts:
         if re.match(r'^["\'].*["\']$', part):
-            shell_parts.append(part)
-        elif re.match(r'\d+$', part):
+            shell_parts.append(part.strip('"\''))
+        elif re.match(r'^\d+$', part):
             shell_parts.append(part)
         else:
             shell_parts.append(f'${part}')
@@ -26,25 +27,39 @@ def convert_print(line):
 
 def convert_if(line):
     condition = re.match(r'if (.+):', line).group(1).strip()
-    return 'if ' + convert_condition(condition) + '; then'
+    return f'if {convert_condition(condition)}; then'
 
 def convert_elif(line):
     condition = re.match(r'elif (.+):', line).group(1).strip()
-    return 'elif ' + convert_condition(condition) + '; then'
+    return f'elif {convert_condition(condition)}; then'
 
 def convert_else(_):
     return 'else'
 
 def convert_condition(cond):
-    # Support only equality for now
-    cond = re.sub(r'(\w+)\s*==\s*["\'](.*?)["\']', r'[ "$\1" = "\2" ]', cond)
-    return cond
+    # Handle string or numeric equality
+    # Handle both: var == "string" and var == number
+    cond = cond.strip()
+
+    # Support multiple comparison patterns
+    # string comparison: [ "$var" = "value" ]
+    str_eq = re.match(r'(\w+)\s*==\s*["\'](.*?)["\']', cond)
+    num_eq = re.match(r'(\w+)\s*==\s*(\d+)', cond)
+
+    if str_eq:
+        var, val = str_eq.groups()
+        return f'[ "${var}" = "{val}" ]'
+    elif num_eq:
+        var, val = num_eq.groups()
+        return f'[ ${var} -eq {val} ]'
+    else:
+        return f'# Unsupported condition: {cond}'
 
 def convert_for_range(line):
     match = re.match(r'for (\w+) in range\((\w+)\):', line)
     if match:
         var, end = match.groups()
-        return f'for {var} in $(seq 0 $(({end} - 1))); do'
+        return f'for {var} in $(seq 0 $((${end} - 1))); do'
     match = re.match(r'for (\w+) in range\((\d+)\):', line)
     if match:
         var, end = match.groups()
@@ -55,17 +70,18 @@ def convert_for_list(line):
     match = re.match(r'for (\w+) in \[(.*?)\]:', line)
     if match:
         var, items = match.groups()
-        items = items.strip().replace('"', '').replace("'", "")
-        return f'for {var} in {items}; do'
+        items = items.replace('"', '').replace("'", "").strip()
+        items_list = items.split(',')
+        items_str = ' '.join(i.strip() for i in items_list)
+        return f'for {var} in {items_str}; do'
     return "# Unsupported for loop"
 
 def convert_line(line, indent_level):
     stripped = line.strip()
+    indent = '  ' * indent_level
 
     if not stripped:
         return ""
-
-    indent = '  ' * indent_level
 
     if stripped.startswith('#'):
         return indent + stripped
@@ -105,20 +121,18 @@ def convert_python_to_shell(py_code):
     for i, line in enumerate(lines):
         current_indent = len(line) - len(line.lstrip())
         indent_level = current_indent // 4
+        stripped = line.strip()
 
-        # Close blocks if indentation decreased
+        # Close blocks when indent decreases
         while indent_stack and indent_stack[-1] > indent_level:
             block = block_keywords.pop()
-            end = 'done' if block == 'for' else 'fi'
-            shell_lines.append('  ' * (indent_stack[-1] - 1) + end)
+            closing = 'done' if block == 'for' else 'fi'
+            shell_lines.append('  ' * (indent_stack[-1] - 1) + closing)
             indent_stack.pop()
-
-        stripped = line.strip()
 
         shell_line = convert_line(line, indent_level)
         shell_lines.append(shell_line)
 
-        # Check if line starts a block
         if stripped.startswith(('for ', 'if ', 'elif ', 'else:')):
             indent_stack.append(indent_level + 1)
             if stripped.startswith('for '):
@@ -126,11 +140,11 @@ def convert_python_to_shell(py_code):
             else:
                 block_keywords.append('if')
 
-    # Close remaining blocks
+    # Close any remaining blocks
     while indent_stack:
         block = block_keywords.pop()
-        end = 'done' if block == 'for' else 'fi'
-        shell_lines.append('  ' * (indent_stack.pop() - 1) + end)
+        closing = 'done' if block == 'for' else 'fi'
+        shell_lines.append('  ' * (indent_stack.pop() - 1) + closing)
 
     return '\n'.join(shell_lines)
 
