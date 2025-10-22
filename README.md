@@ -43,5 +43,6 @@ else
   echo "Who are you?"
 fi
 ```
-#### Using the translator is easy and fun. Simply copy and paste Translator.py into a Python module.
+#### Using the translator is easy and fun. Simply copy and paste Translator.py into a Python file,
+#### then run it in IDLE.
 #### *This repo was made with partial assistance from ChatGPT.*
